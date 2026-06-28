@@ -1,0 +1,29 @@
+node_modules/
+.next/
+.env
+.env.local
+*.log
+dist/
+build/
+
+# User-uploaded avatars
+apps/web/public/uploads/
+
+# Flutter
+apps/mobile/.dart_tool/
+apps/mobile/.flutter-plugin-registrant/
+apps/mobile/build/
+apps/mobile/.packages
+apps/mobile/.pub-cache/
+apps/mobile/.pub/
+apps/mobile/ios/Pods/
+apps/mobile/ios/.symlinks/
+apps/mobile/ios/Flutter/Flutter.framework
+apps/mobile/ios/Flutter/Flutter.podspec
+apps/mobile/android/.gradle/
+apps/mobile/android/local.properties
+
+# Prisma
+prisma/migrations/dev.db*
+
+.DS_Store

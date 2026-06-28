@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #101419;
+
+  --color-ft-orange: #ee5b4d;
+  --color-ft-dark-orange: #c62f14;
+  --color-ft-grey-dark: #374655;
+  --color-ft-grey-darker: #101419;
+  --color-ft-grey-medium: #6b859e;
+  --color-ft-grey-light: #9cadbf;
+  --color-ft-green: #90b6ad;
+  --color-ft-yellow: #f6b94f;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-ft-orange: var(--color-ft-orange);
+  --color-ft-dark-orange: var(--color-ft-dark-orange);
+  --color-ft-grey-dark: var(--color-ft-grey-dark);
+  --color-ft-grey-darker: var(--color-ft-grey-darker);
+  --color-ft-grey-medium: var(--color-ft-grey-medium);
+  --color-ft-grey-light: var(--color-ft-grey-light);
+  --color-ft-green: var(--color-ft-green);
+  --color-ft-yellow: var(--color-ft-yellow);
+  --font-sans: var(--font-open-sans);
+  --font-heading: var(--font-zilla-slab);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-open-sans), Arial, Helvetica, sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-zilla-slab), Georgia, serif;
+}

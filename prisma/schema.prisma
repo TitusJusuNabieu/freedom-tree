@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  FIELD_WORKER
+  SUPERVISOR
+  DATA_ANALYST
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum PlaceOfDeath {
+  HEALTH_FACILITY
+  HOME
+  OTHER
+  NOT_APPLICABLE
+}
+
+enum InfantDeathCause {
+  LACK_OF_SKILLED_BIRTH_ATTENDANT
+  DELAY_ACCESSING_HEALTH_FACILITY
+  LACK_OF_TRANSPORTATION_POOR_ROAD
+  POOR_NUTRITION
+  BAD_CULTURAL_PRACTICES
+  OTHER
+  NOT_APPLICABLE
+}
+
+enum SyncOrigin {
+  MOBILE
+  WEB
+}
+
+model User {
+  id            String         @id @default(uuid())
+  username      String         @unique
+  passwordHash  String
+  name          String
+  position      String
+  role          Role           @default(FIELD_WORKER)
+  community     String?
+  avatarUrl     String?
+  active           Boolean                @default(true)
+  refreshTokens    RefreshToken[]
+  reports          Report[]
+  educationSurveys EducationSurvey[]
+  maternalSurveys  MaternalHealthSurvey[]
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model Report {
+  id       String @id @default(uuid())
+  clientId String @unique
+
+  // Section 1 — General Information
+  reportingMonth      DateTime
+  community            String
+  submittedByName      String
+  submittedByPosition  String
+  dateSubmitted        DateTime
+
+  // Section 2 — Maternal Health
+  pregnantWomenCount     Int
+  deliveriesTotal        Int
+  deliveriesAtFacility   Int
+  deliveriesAtHome       Int
+  maternalDeaths         Int
+  placeOfDeath           PlaceOfDeath[]
+  placeOfDeathOtherNote  String?
+  suspectedMaternalCause String?
+
+  // Section 3 — Infant Health
+  liveBirths                  Int
+  infantDeathsTotal           Int
+  infantDeathsWithin24h       Int
+  infantDeathsWithin1Month    Int
+  infantDeathsWithin12Months  Int
+
+  // Section 4 — Contributing Factors
+  infantDeathCauses          InfantDeathCause[]
+  infantDeathCausesOtherNote String?
+
+  // Section 5 — Community Actions & Recommendations
+  keyChallenges      String @db.Text
+  actionsTaken       String @db.Text
+  additionalComments String @db.Text
+
+  // Submission / sync metadata
+  submittedById    String
+  submittedBy      User       @relation(fields: [submittedById], references: [id])
+  origin           SyncOrigin @default(MOBILE)
+  clientCreatedAt  DateTime
+  clientUpdatedAt  DateTime
+  serverReceivedAt DateTime   @default(now())
+  serverUpdatedAt  DateTime   @updatedAt
+
+  @@index([reportingMonth])
+  @@index([community])
+  @@index([submittedById])
+  @@unique([community, reportingMonth], name: "one_report_per_community_per_month")
+}
+
+model EducationSurvey {
+  id            String   @id @default(uuid())
+  clientId      String   @unique
+
+  enumeratorName     String
+  surveyDate         DateTime
+  communityOrSchool  String
+  district           String
+  respondentName     String
+  respondentCategory String
+  sex                String
+
+  answers Json
+
+  submittedById    String
+  submittedBy      User       @relation(fields: [submittedById], references: [id])
+  origin           SyncOrigin @default(MOBILE)
+  clientCreatedAt  DateTime
+  clientUpdatedAt  DateTime
+  serverReceivedAt DateTime   @default(now())
+  serverUpdatedAt  DateTime   @updatedAt
+
+  @@index([surveyDate])
+  @@index([communityOrSchool])
+  @@index([respondentCategory])
+}
+
+model MaternalHealthSurvey {
+  id            String   @id @default(uuid())
+  clientId      String   @unique
+
+  enumeratorName     String
+  surveyDate         DateTime
+  community          String
+  healthFacility     String?
+  district           String
+  respondentName     String
+  respondentCategory String
+  sex                String
+
+  answers Json
+
+  submittedById    String
+  submittedBy      User       @relation(fields: [submittedById], references: [id])
+  origin           SyncOrigin @default(MOBILE)
+  clientCreatedAt  DateTime
+  clientUpdatedAt  DateTime
+  serverReceivedAt DateTime   @default(now())
+  serverUpdatedAt  DateTime   @updatedAt
+
+  @@index([surveyDate])
+  @@index([community])
+  @@index([respondentCategory])
+}
