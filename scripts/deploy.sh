@@ -48,6 +48,10 @@ ok "Dependencies installed"
 
 # ── Run database migrations ───────────────────────────────────────────────────
 info "Running database migrations..."
+# Prisma schema is at repo root but DATABASE_URL lives in apps/web/.env.production.local
+# Export it explicitly so prisma can find it from any working directory
+DATABASE_URL="$(grep '^DATABASE_URL=' "$ENV_FILE" | sed 's/^DATABASE_URL="\(.*\)"$/\1/')"
+export DATABASE_URL
 # prisma migrate deploy applies pending migrations without prompting — safe for production
 pnpm exec prisma migrate deploy
 ok "Migrations applied"
