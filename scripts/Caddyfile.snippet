@@ -1,0 +1,27 @@
+# ── Freedom Tree — add this block to /etc/caddy/Caddyfile ────────────────────
+# Replace YOUR_SERVER_IP with your DigitalOcean droplet IP, e.g. 159.89.42.10
+# Access the app at:  http://YOUR_SERVER_IP:8080
+#
+# After editing Caddyfile:
+#   sudo caddy fmt --overwrite /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+
+:8080 {
+    # Compress responses
+    encode gzip
+
+    # Proxy all traffic to Next.js (running on 3001)
+    reverse_proxy localhost:3001 {
+        # Pass real client IP to Next.js
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Basic security headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}
