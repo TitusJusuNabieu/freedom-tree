@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Prisma } from "@prisma/client";
+import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/lib/auth/nextAuthOptions";
 import { ReportFilters } from "@/components/ReportFilters";
 import { ReportsToolbar } from "@/components/ReportsToolbar";
 
@@ -11,11 +13,23 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ community?: string; month?: string; dateFrom?: string; dateTo?: string; page?: string }>;
 }) {
+  const session = await getServerSession(authOptions);
+  const role = session?.user?.role;
+  const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";
+  const isSupervisor = role === "SUPERVISOR";
+
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
 
   const where: Prisma.ReportWhereInput = {};
-  if (params.community) where.community = params.community;
+
+  // Supervisors are locked to their own community; admins/analysts can filter freely
+  if (isSupervisor && session?.user?.community) {
+    where.community = session.user.community;
+  } else if (params.community) {
+    where.community = params.community;
+  }
+
   if (params.month) where.reportingMonth = new Date(params.month);
   if (params.dateFrom || params.dateTo) {
     where.reportingMonth = {
@@ -38,7 +52,6 @@ export default async function ReportsPage({
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  // Build export query string from current filters (passed to client toolbar)
   const exportQs = [
     params.community ? `&community=${encodeURIComponent(params.community)}` : "",
     params.dateFrom ? `&dateFrom=${params.dateFrom}` : "",
@@ -49,12 +62,17 @@ export default async function ReportsPage({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-ft-grey-darker">Reports</h1>
-        <p className="mt-1 text-sm text-ft-grey-medium">{total} report{total === 1 ? "" : "s"}</p>
+        <p className="mt-1 text-sm text-ft-grey-medium">
+          {isSupervisor && session?.user?.community ? `${session.user.community} · ` : ""}
+          {total} report{total === 1 ? "" : "s"}
+        </p>
       </div>
 
-      <ReportFilters communities={communities.map((c) => c.community)} />
+      {/* Community filter only for admins/analysts — supervisors are locked to theirs */}
+      {!isSupervisor && <ReportFilters communities={communities.map((c) => c.community)} />}
 
-      <ReportsToolbar exportParams={exportQs} />
+      {/* Import/export toolbar: admins only */}
+      {isAdmin && <ReportsToolbar exportParams={exportQs} />}
 
       <div className="overflow-x-auto rounded-lg border border-ft-grey-light">
         <table className="w-full text-left text-sm">

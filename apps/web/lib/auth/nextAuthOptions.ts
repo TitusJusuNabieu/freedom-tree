@@ -18,8 +18,8 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.username || !credentials?.password) return null;
         const user = await verifyCredentials(credentials.username, credentials.password);
         if (!user) return null;
-        // Dashboard access: ADMIN and SUPER_ADMIN only
-        if (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") return null;
+        // Field workers use the mobile app only
+        if (user.role === "FIELD_WORKER") return null;
         return {
           id: user.id,
           name: user.name,

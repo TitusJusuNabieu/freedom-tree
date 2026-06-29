@@ -1,4 +1,7 @@
+import { getServerSession } from "next-auth";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/lib/auth/nextAuthOptions";
 import { StatCard } from "@/components/StatCard";
 import { TrendChart, type TrendPoint } from "@/components/TrendChart";
 import { DownloadableChart } from "@/components/DownloadableChart";
@@ -7,10 +10,14 @@ import { DeliveryStackedChart, type DeliveryPoint } from "@/components/DeliveryS
 import { MortalityRateChart, type MortalityPoint } from "@/components/MortalityRateChart";
 import { PlaceOfDeathChart, type PlaceCount } from "@/components/PlaceOfDeathChart";
 import { InfantCausesChart, type CauseCount } from "@/components/InfantCausesChart";
+import { ShareLinkDialog } from "@/components/ShareLinkDialog";
 
-async function getData() {
+async function getData(communityFilter: string | null) {
+  const where: Prisma.ReportWhereInput = communityFilter ? { community: communityFilter } : {};
+
   const [agg, reports, communityGroups] = await Promise.all([
     prisma.report.aggregate({
+      where,
       _sum: {
         pregnantWomenCount: true,
         deliveriesTotal: true,
@@ -23,6 +30,7 @@ async function getData() {
       _count: { id: true },
     }),
     prisma.report.findMany({
+      where,
       select: {
         reportingMonth: true,
         maternalDeaths: true,
@@ -38,6 +46,7 @@ async function getData() {
     }),
     prisma.report.groupBy({
       by: ["community"],
+      where,
       _sum: {
         deliveriesTotal: true,
         liveBirths: true,
@@ -48,7 +57,6 @@ async function getData() {
     }),
   ]);
 
-  // Monthly trend buckets
   const trendMap = new Map<string, TrendPoint>();
   const deliveryMap = new Map<string, DeliveryPoint>();
   const mortalityMap = new Map<string, { liveBirths: number; maternalDeaths: number; infantDeathsTotal: number }>();
@@ -77,7 +85,6 @@ async function getData() {
 
   const trends = Array.from(trendMap.values());
   const deliveryTrend = Array.from(deliveryMap.values());
-
   const mortalityPoints: MortalityPoint[] = Array.from(mortalityMap.entries()).map(([month, v]) => ({
     month,
     liveBirths: v.liveBirths,
@@ -87,19 +94,8 @@ async function getData() {
     infantRate: v.liveBirths > 0 ? (v.infantDeathsTotal / v.liveBirths) * 100 : 0,
   }));
 
-  // Place of death aggregation (each report can have multiple values in the array)
-  const placeCount: Record<string, number> = {
-    "Health facility": 0,
-    "Home": 0,
-    "Other": 0,
-    "Not Applicable": 0,
-  };
-  const labelMap: Record<string, string> = {
-    HEALTH_FACILITY: "Health facility",
-    HOME: "Home",
-    OTHER: "Other",
-    NOT_APPLICABLE: "Not Applicable",
-  };
+  const placeCount: Record<string, number> = { "Health facility": 0, "Home": 0, "Other": 0, "Not Applicable": 0 };
+  const labelMap: Record<string, string> = { HEALTH_FACILITY: "Health facility", HOME: "Home", OTHER: "Other", NOT_APPLICABLE: "Not Applicable" };
   for (const r of reports) {
     for (const p of r.placeOfDeath) {
       const label = labelMap[p as string] ?? p;
@@ -108,7 +104,6 @@ async function getData() {
   }
   const placeData: PlaceCount[] = Object.entries(placeCount).map(([name, value]) => ({ name, value }));
 
-  // Infant death causes aggregation
   const causeLabels: Record<string, string> = {
     LACK_OF_SKILLED_BIRTH_ATTENDANT: "No skilled attendant",
     DELAY_ACCESSING_HEALTH_FACILITY: "Delayed facility access",
@@ -135,6 +130,8 @@ async function getData() {
     infantDeathsTotal: g._sum.infantDeathsTotal ?? 0,
   }));
 
+  const allCommunities = await prisma.report.findMany({ select: { community: true }, distinct: ["community"] });
+
   return {
     summary: {
       reportCount: agg._count.id,
@@ -152,26 +149,40 @@ async function getData() {
     placeData,
     causeData,
     communityData,
+    allCommunities: allCommunities.map((c) => c.community),
   };
 }
 
 export default async function OverviewPage() {
-  const { summary, trends, deliveryTrend, mortalityPoints, placeData, causeData, communityData } = await getData();
+  const session = await getServerSession(authOptions);
+  const role = session?.user?.role;
+  const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";
+  const isSupervisor = role === "SUPERVISOR";
+  const communityFilter = isSupervisor ? (session?.user?.community ?? null) : null;
+
+  const { summary, trends, deliveryTrend, mortalityPoints, placeData, causeData, communityData, allCommunities } =
+    await getData(communityFilter);
 
   const facilityPct = summary.deliveriesTotal > 0
     ? Math.round((summary.deliveriesAtFacility / summary.deliveriesTotal) * 100)
     : 0;
 
+  const scopeLabel = communityFilter
+    ? communityFilter
+    : "All communities";
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-ft-grey-darker">Overview</h1>
-        <p className="mt-1 text-sm text-ft-grey-medium">
-          All communities · all reporting periods · {summary.reportCount} report{summary.reportCount === 1 ? "" : "s"}
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-ft-grey-darker">Overview</h1>
+          <p className="mt-1 text-sm text-ft-grey-medium">
+            {scopeLabel} · all reporting periods · {summary.reportCount} report{summary.reportCount === 1 ? "" : "s"}
+          </p>
+        </div>
+        {isAdmin && <ShareLinkDialog communities={allCommunities} />}
       </div>
 
-      {/* Summary stat cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="Pregnant women" value={summary.pregnantWomenCount} />
         <StatCard label="Deliveries" value={summary.deliveriesTotal} />
@@ -181,29 +192,24 @@ export default async function OverviewPage() {
         <StatCard label="Facility deliveries" value={facilityPct} suffix="%" />
       </div>
 
-      {/* Row 1 */}
       <div className="grid gap-6 xl:grid-cols-2">
         <DownloadableChart title="Monthly trends">
           <TrendChart data={trends} />
         </DownloadableChart>
-
         <DownloadableChart title="Mortality rates over time (per live births)">
           <MortalityRateChart data={mortalityPoints} />
         </DownloadableChart>
       </div>
 
-      {/* Row 2 */}
       <div className="grid gap-6 xl:grid-cols-2">
         <DownloadableChart title="Delivery location by month">
           <DeliveryStackedChart data={deliveryTrend} />
         </DownloadableChart>
-
         <DownloadableChart title="Place of maternal death">
           <PlaceOfDeathChart data={placeData} />
         </DownloadableChart>
       </div>
 
-      {/* Row 3 — full width */}
       <DownloadableChart title="Community comparison">
         <CommunityBarChart data={communityData} />
       </DownloadableChart>
