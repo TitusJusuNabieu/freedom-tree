@@ -4,9 +4,10 @@ module.exports = {
   apps: [
     {
       name: 'freedomtree-web',
-      script: path.join(__dirname, 'scripts', 'start-web.sh'),
-      interpreter: '/bin/bash',
       cwd: path.join(__dirname, 'apps', 'web'),
+      script: 'pnpm',
+      args: 'exec next start --port 3001',
+      interpreter: 'none',
       instances: 1,
       watch: false,
       max_memory_restart: '512M',
